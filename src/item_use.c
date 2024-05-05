@@ -61,6 +61,7 @@ static void Task_OpenRegisteredPokeblockCase(u8);
 static void Task_AccessPokemonBoxLink(u8);
 static void ItemUseOnFieldCB_Bike(u8);
 static void ItemUseOnFieldCB_Rod(u8);
+static void ItemUseOnFieldCB_Ocarina(u8);
 static void ItemUseOnFieldCB_Itemfinder(u8);
 static void ItemUseOnFieldCB_Berry(u8);
 static void ItemUseOnFieldCB_WailmerPailBerry(u8);
@@ -304,9 +305,21 @@ void ItemUseOutOfBattle_Rod(u8 taskId)
         DisplayDadsAdviceCannotUseItemMessage(taskId, gTasks[taskId].tUsingRegisteredKeyItem);
 }
 
+void ItemUseOutOfBattle_Ocarina(u8 taskId)
+{
+    sItemUseOnFieldCB = ItemUseOnFieldCB_Ocarina;
+    SetUpItemUseOnFieldCallback(taskId);
+}
+
 static void ItemUseOnFieldCB_Rod(u8 taskId)
 {
     StartFishing(ItemId_GetSecondaryId(gSpecialVar_ItemId));
+    DestroyTask(taskId);
+}
+
+static void ItemUseOnFieldCB_Ocarina(u8 taskId)
+{
+    StartOcarina();
     DestroyTask(taskId);
 }
 

@@ -10985,7 +10985,7 @@ const struct Item gItemsInfo[] =
         .importance = 1,
         .pocket = POCKET_KEY_ITEMS,
         .type = ITEM_USE_FIELD,
-        .fieldUseFunc = ItemUseOutOfBattle_Rod,
+        .fieldUseFunc = ItemUseOutOfBattle_Ocarina,
         .secondaryId = OLD_ROD,
     },
 

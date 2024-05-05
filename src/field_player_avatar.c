@@ -122,6 +122,7 @@ static void Task_StopSurfingInit(u8);
 static void Task_WaitStopSurfing(u8);
 
 static void Task_Fishing(u8);
+static void Task_Ocarina(u8);
 static u8 Fishing_Init(struct Task *);
 static u8 Fishing_GetRodOut(struct Task *);
 static u8 Fishing_WaitBeforeDots(struct Task *);
@@ -139,6 +140,11 @@ static u8 Fishing_NoMon(struct Task *);
 static u8 Fishing_PutRodAway(struct Task *);
 static u8 Fishing_EndNoMon(struct Task *);
 static void AlignFishingAnimationFrames(void);
+
+static u8 Ocarina_Init(struct Task *);
+static u8 Ocarina_Play(struct Task *);
+static u8 Ocarina_PlayedSong(struct Task *);
+static u8 Ocarina_End(struct Task *);
 
 static u8 TrySpinPlayerForWarp(struct ObjectEvent *, s16 *);
 
@@ -1706,6 +1712,14 @@ static bool8 (*const sFishingStateFuncs[])(struct Task *) =
     Fishing_EndNoMon,
 };
 
+static bool8 (*const sOcarinaStateFuncs[])(struct Task *) =
+{
+    Ocarina_Init,
+    Ocarina_Play,
+    Ocarina_PlayedSong,
+    Ocarina_End,
+};
+
 void StartFishing(u8 rod)
 {
     u8 taskId = CreateTask(Task_Fishing, 0xFF);
@@ -1714,9 +1728,21 @@ void StartFishing(u8 rod)
     Task_Fishing(taskId);
 }
 
+void StartOcarina()
+{
+    u8 taskId = CreateTask(Task_Ocarina, 0xFF);
+    Task_Ocarina(taskId);
+}
+
 static void Task_Fishing(u8 taskId)
 {
     while (sFishingStateFuncs[gTasks[taskId].tStep](&gTasks[taskId]))
+        ;
+}
+
+static void Task_Ocarina(u8 taskId)
+{
+    while (sOcarinaStateFuncs[gTasks[taskId].tStep](&gTasks[taskId]))
         ;
 }
 
@@ -1725,6 +1751,150 @@ static bool8 Fishing_Init(struct Task *task)
     LockPlayerFieldControls();
     gPlayerAvatar.preventStep = TRUE;
     task->tStep++;
+    return FALSE;
+}
+
+enum OcarinaNotes {
+    NOTE_NONE,
+    NOTE_DOWN,
+    NOTE_RIGHT,
+    NOTE_LEFT,
+    NOTE_UP,
+    NOTE_A
+};
+
+static u8 OcarinaPlayedNotes[8] = {
+    NOTE_NONE,
+    NOTE_NONE,
+    NOTE_NONE,
+    NOTE_NONE,
+    NOTE_NONE,
+    NOTE_NONE,
+    NOTE_NONE,
+    NOTE_NONE
+};
+
+static const u8 SongOfStorms[6] = {
+    NOTE_A,
+    NOTE_DOWN,
+    NOTE_UP,
+    NOTE_A,
+    NOTE_DOWN,
+    NOTE_UP
+};
+
+static bool8 Ocarina_Init(struct Task *task)
+{
+    OcarinaPlayedNotes[0] = NOTE_NONE;
+    OcarinaPlayedNotes[1] = NOTE_NONE;
+    OcarinaPlayedNotes[2] = NOTE_NONE;
+    OcarinaPlayedNotes[3] = NOTE_NONE;
+    OcarinaPlayedNotes[4] = NOTE_NONE;
+    OcarinaPlayedNotes[5] = NOTE_NONE;
+    OcarinaPlayedNotes[6] = NOTE_NONE;
+    OcarinaPlayedNotes[7] = NOTE_NONE;
+
+    LockPlayerFieldControls();
+    gPlayerAvatar.preventStep = TRUE;
+
+    struct ObjectEvent *playerObjEvent;
+    task->tRoundsPlayed = 0;
+    task->tPlayerGfxId = gObjectEvents[gPlayerAvatar.objectEventId].graphicsId;
+    playerObjEvent = &gObjectEvents[gPlayerAvatar.objectEventId];
+    ObjectEventClearHeldMovementIfActive(playerObjEvent);
+    playerObjEvent->enableAnim = TRUE;
+    SetPlayerAvatarFishing(playerObjEvent->facingDirection);
+    task->tStep++;
+
+    return FALSE;
+}
+
+bool8 Get_Played_Song(u8* playedArray, const u8* songArray, size_t songArraySize) {
+    u8 reversedArr[8];
+    
+    for (int i = 0; i < 8; i++) {
+        reversedArr[i] = playedArray[8 - i - 1];
+    }
+
+    for (int i = 0; i <= 8 - songArraySize; i++) {
+        int j;
+
+        for (j = 0; j < songArraySize; j++) {
+            if (reversedArr[i + j] != songArray[j]) {
+                break;
+            }
+        }
+
+        if (j == songArraySize) {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+static bool8 Ocarina_Play(struct Task *task)
+{
+    u8 playedNote = 0;
+
+    if (JOY_NEW(DPAD_UP)) {
+        PlaySE(SE_GLASS_FLUTE);
+        playedNote = NOTE_UP;
+    } else if (JOY_NEW(DPAD_DOWN)) {
+        PlaySE(SE_GLASS_FLUTE);
+        playedNote = NOTE_DOWN;
+    } else if (JOY_NEW(DPAD_LEFT)) {
+        PlaySE(SE_GLASS_FLUTE);
+        playedNote = NOTE_LEFT;
+    } else if (JOY_NEW(DPAD_RIGHT)) {
+        PlaySE(SE_GLASS_FLUTE);
+        playedNote = NOTE_RIGHT;
+    } else if (JOY_NEW(A_BUTTON)) {
+        PlaySE(SE_GLASS_FLUTE);
+        playedNote = NOTE_A;
+    } else if (JOY_NEW(B_BUTTON)) {
+        task->tStep = 3;
+        return FALSE;
+    }
+
+    if (playedNote != 0) {
+        for (int i = 7; i > 0; i--){        
+            OcarinaPlayedNotes[i] = OcarinaPlayedNotes[i - 1];
+        }
+
+        OcarinaPlayedNotes[0] = playedNote;
+
+        if (Get_Played_Song(OcarinaPlayedNotes, SongOfStorms, 6) == TRUE) {
+            PlayFanfare(MUS_HEAL);
+            task->tStep++;
+        }
+    }
+
+    return FALSE;
+}
+
+static bool8 Ocarina_PlayedSong(struct Task *task)
+{
+    if (IsFanfareTaskInactive())
+    {
+        task->tStep++;
+    }
+
+    return FALSE;
+}
+
+static bool8 Ocarina_End(struct Task *task)
+{
+    struct ObjectEvent *playerObjEvent = &gObjectEvents[gPlayerAvatar.objectEventId];
+
+    ObjectEventSetGraphicsId(playerObjEvent, task->tPlayerGfxId);
+    ObjectEventTurn(playerObjEvent, playerObjEvent->movementDirection);
+
+    gPlayerAvatar.preventStep = FALSE;
+    UnlockPlayerFieldControls();
+    UnfreezeObjectEvents();
+    DestroyTask(FindTaskIdByFunc(Task_Ocarina));
+
     return FALSE;
 }
 
@@ -1750,6 +1920,7 @@ static bool8 Fishing_GetRodOut(struct Task *task)
     playerObjEvent->enableAnim = TRUE;
     SetPlayerAvatarFishing(playerObjEvent->facingDirection);
     task->tStep++;
+
     return FALSE;
 }
 
